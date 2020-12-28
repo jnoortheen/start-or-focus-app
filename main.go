@@ -1,3 +1,5 @@
+///usr/bin/env go run "$0" "$@" ; exit "$?"
+
 package main
 
 // https://blog.cloudflare.com/using-go-as-a-scripting-language-in-linux/

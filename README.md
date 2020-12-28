@@ -12,7 +12,7 @@ a small utility to set global shortcut keys for apps
    ii. the command needs to be
 
    ```bash
-   ~/go/bin/gorun /data/src/shell/snippets/start-or-focus-app/start-or-focus-app.go pycharm code
+   ~/go/bin/gorun /src/shell/snippets/start-or-focus-app/start-or-focus-app.go pycharm code
    ```
 
    this will try to focus pycharm,vscode in order. If none of them are running, then starts pycharm.
