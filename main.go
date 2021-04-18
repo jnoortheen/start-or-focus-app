@@ -11,16 +11,23 @@ import (
 	"path/filepath"
 	"strings"
 
+	"os/exec"
+
 	"github.com/alexflint/go-arg"
-	"github.com/magefile/mage/sh"
 )
 
 var args struct {
 	Programs []string `arg:"positional" help:"name of program to start/focus"`
 }
 
-func focusWindow(program string) error {
-	return sh.Run("wmctrl", "-x", "-a", program)
+func focusWindow(windowClsName string) error {
+	out, err := exec.Command("xdotool", "get_desktop").Output()
+	if err != nil {
+		return err
+	}
+	desktop := strings.TrimSpace(string(out))
+
+	return exec.Command("xdotool", "search", "--desktop", desktop, "--class", windowClsName, "windowactivate").Run()
 }
 
 func searchDesktopEntry(program string) (string, error) {
@@ -59,13 +66,13 @@ func main() {
 
 	desktopEntry, derr := searchDesktopEntry(program)
 	if derr == nil {
-		sh.Run(
+		exec.Command(
 			"nohup",
 			"kioclient5",
 			"exec",
 			desktopEntry,
 			// _out="/dev/null",
 			// _err=current_log
-		)
+		).Run()
 	}
 }
