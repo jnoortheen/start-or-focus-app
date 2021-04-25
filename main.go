@@ -13,11 +13,41 @@ import (
 
 	"os/exec"
 
+	"regexp"
+
 	"github.com/alexflint/go-arg"
 )
 
 var args struct {
-	Programs []string `arg:"positional" help:"name of program to start/focus"`
+	Programs []string `arg:"positional" help:"program's windows class name to start/focus. This is listed as part of 'wmctrl -lx'"`
+}
+
+func regexGroupedFind(expr *regexp.Regexp, str string) map[string]string {
+	result := make(map[string]string)
+	match := expr.FindStringSubmatch(str)
+	if len(match) > 0 {
+		for i, name := range expr.SubexpNames() {
+			if i != 0 && name != "" {
+				result[name] = match[i]
+			}
+		}
+	}
+	return result
+}
+
+func getWindowIds(clsName string, allWindows string) map[string]string {
+	matches := make(map[string]string)
+
+	ptrn := `(?P<windowid>0x[\w]+)\s+(?P<desktop>[-\d]+)\s.*%s.*\s\s`
+	for _, line := range strings.Split(strings.ReplaceAll(string(allWindows), "\r\n", "\n"), "\n") {
+		regx := regexp.MustCompile(fmt.Sprintf(ptrn, clsName))
+		groups := regexGroupedFind(regx, line)
+		if len(groups) > 0 {
+			matches[groups["desktop"]] = groups["windowid"]
+		}
+	}
+
+	return matches
 }
 
 func focusWindow(windowClsName string) error {
@@ -27,7 +57,24 @@ func focusWindow(windowClsName string) error {
 	}
 	desktop := strings.TrimSpace(string(out))
 
-	return exec.Command("xdotool", "search", "--desktop", desktop, "--class", windowClsName, "windowactivate").Run()
+	allWindows, err := exec.Command("wmctrl", "-lx").Output()
+	if err != nil {
+		return err
+	}
+	matches := getWindowIds(windowClsName, string(allWindows))
+
+	if len(matches) < 0 {
+		return errors.New("not found any window running")
+	}
+	if windowId, ok := matches[desktop]; ok {
+		return exec.Command("wmctrl", "-i", "-a", windowId).Run()
+	}
+
+	if windowId, ok := matches["-1"]; ok {
+		return exec.Command("wmctrl", "-i", "-a", windowId).Run()
+	}
+
+	return errors.New("not found window running")
 }
 
 func searchDesktopEntry(program string) (string, error) {

@@ -16,3 +16,13 @@ a small utility to set global shortcut keys for apps
    ```
 
    this will try to focus pycharm,vscode in order. If none of them are running, then starts pycharm.
+
+
+# development
+
+install gore and go-code with
+
+```sh
+go get github.com/motemen/gore/cmd/gore
+go get github.com/mdempsky/gocode   # for code completion
+```
