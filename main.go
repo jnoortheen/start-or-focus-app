@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"os/exec"
+	"os/user"
 
 	"regexp"
 
@@ -19,7 +20,9 @@ import (
 )
 
 var args struct {
-	Programs []string `arg:"positional" help:"program's windows class name to start/focus. This is listed as part of 'wmctrl -lx'"`
+	Programs   []string `arg:"positional" help:"program's windows class name to start/focus. This is listed as part of 'wmctrl -lx'"`
+	AnyDesktop bool     `help:"activate window in any desktop."`
+	Exec       bool     `help:"Launch by calling executable directly instead of using .desktop file."`
 }
 
 func regexGroupedFind(expr *regexp.Regexp, str string) map[string]string {
@@ -70,7 +73,18 @@ func focusWindow(windowClsName string) error {
 		return exec.Command("wmctrl", "-i", "-a", windowId).Run()
 	}
 
-	if windowId, ok := matches["-1"]; ok {
+	windowId := ""
+	if wid, ok := matches["-1"]; ok {
+		windowId = wid
+	}
+	if args.AnyDesktop && len(matches) > 0 {
+		for _, wid := range matches {
+			windowId = wid
+			break
+		}
+	}
+
+	if len(windowId) > 0 {
 		return exec.Command("wmctrl", "-i", "-a", windowId).Run()
 	}
 
@@ -80,9 +94,16 @@ func focusWindow(windowClsName string) error {
 func searchDesktopEntry(program string) (string, error) {
 	dirsEnv := os.Getenv("XDG_DATA_DIRS")
 	dirs := filepath.SplitList(dirsEnv)
+
+	usr, _ := user.Current()
+	homeDir := filepath.Join(usr.HomeDir, ".local", "share")
+	dirs = append(dirs, homeDir)
+
 	pattern := "*" + program + "*.desktop"
 	for _, dir := range dirs {
-		matches, _ := filepath.Glob(filepath.Join(dir, "applications", pattern))
+		app_dir := filepath.Join(dir, "applications", pattern)
+		fmt.Printf("Searching in %s \n", app_dir)
+		matches, _ := filepath.Glob(app_dir)
 		for _, path := range matches {
 			if !strings.Contains(path, "-handler") {
 				return path, nil
@@ -90,6 +111,34 @@ func searchDesktopEntry(program string) (string, error) {
 		}
 	}
 	return "", errors.New("no file found")
+}
+
+func launchByKioClient(program string) {
+	desktopEntry, err := searchDesktopEntry(program)
+	if err == nil {
+		fmt.Println("Found program entry " + desktopEntry)
+		err := exec.Command(
+			"nohup",
+			"kioclient5",
+			"exec",
+			desktopEntry,
+		).Run()
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+}
+
+func launchByDbus(program string) {
+	out, err := exec.Command(
+		"qdbus", "org.kde.klauncher5",
+		"/KLauncher",
+		"exec_blind",
+		program,
+	).Output()
+	if err != nil {
+		fmt.Println("Error during klaunch: ", string(out), err)
+	}
 }
 
 func main() {
@@ -105,21 +154,21 @@ func main() {
 		err := focusWindow(prog)
 		if err == nil {
 			return
+		} else {
+			fmt.Println(err)
 		}
 	}
 
 	program := args.Programs[0]
 	fmt.Println("Starting the program " + program)
-
-	desktopEntry, derr := searchDesktopEntry(program)
-	if derr == nil {
-		exec.Command(
-			"nohup",
-			"kioclient5",
-			"exec",
-			desktopEntry,
-			// _out="/dev/null",
-			// _err=current_log
+	if args.Exec {
+		err := exec.Command(
+			program,
 		).Run()
+		if err != nil {
+			fmt.Println("Error during app launch: ", err)
+		}
+	} else {
+		launchByKioClient(program)
 	}
 }
