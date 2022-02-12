@@ -70,21 +70,6 @@ venv/
 # Rope project settings
 .ropeproject
 
-# project specific
-/server/conf.py
-/server/settings/env/.local.py
-.directory
-/assets/
-/local
-/backups
-node_modules/
-/.fab_tasks~
-static/admin/plugins/*
-/james/media/
-/desktop.ini
-/media/
-/src/
-
 *.py.org
 *.py.orig
 *.html.py
